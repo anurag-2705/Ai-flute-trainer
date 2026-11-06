@@ -1,0 +1,9 @@
+numpy
+scipy
+opencv-python
+mediapipe
+sounddevice
+scikit-learn
+pandas
+joblib
+pytest

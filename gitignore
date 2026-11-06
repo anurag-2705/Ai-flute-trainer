@@ -1,0 +1,16 @@
+# environment
+venv/
+__pycache__/
+*.pyc
+
+# personal / private data (do not publish)
+data/
+sessions/
+*.joblib
+
+# videos and audio (rights belong to their owners)
+*.mp4
+*.mkv
+*.webm
+*.wav
+*.mp3
