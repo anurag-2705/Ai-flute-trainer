@@ -10,8 +10,14 @@ SAMPLE_RATE = 44100
 FRAME_SIZE = 4096            # samples analysed at once (~93 ms)
 FMIN = 180.0                 # lowest note we expect (Hz). Lower it for a low bansuri.
 FMAX = 2300.0                # highest note we expect (Hz)
-SILENCE_RMS = 0.01           # below this volume we treat it as "not playing"
-MIN_CONFIDENCE = 0.80        # YIN confidence needed to trust a pitch
+SILENCE_RMS = 0.0008         # absolute floor: below this it is silence (laptop mics are quiet!)
+MIN_CONFIDENCE = 0.55        # YIN confidence needed to trust a pitch (real flutes are breathy)
+YIN_THRESHOLD = 0.15         # strict "clean tone" threshold
+YIN_FALLBACK = 0.45          # if no clean tone, accept the best candidate below this (breathy)
+LOWPASS_HZ = 3500            # removes breath hiss above this before pitch detection
+CALIBRATION_SECONDS = 1.0    # app listens to the quiet room this long at start
+NOISE_MARGIN = 2.5           # sound must be this many times louder than the room noise
+NOISE_FLOOR_CAP = 0.02       # ignore calibration if you were already playing
 
 # ---- notes ----
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]

@@ -3,13 +3,16 @@ from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
-from scipy.signal import fftconvolve
+from scipy.signal import butter, fftconvolve, sosfiltfilt
 
 import config
 
 
-def yin(x, sr, fmin=config.FMIN, fmax=config.FMAX, threshold=0.15):
-    """Return (frequency_hz or None, confidence 0..1) for one audio frame."""
+def yin(x, sr, fmin=config.FMIN, fmax=config.FMAX, threshold=0.15, fallback=None):
+    """Return (frequency_hz or None, confidence 0..1) for one audio frame.
+
+    threshold: a dip below this is a clean tone. fallback: if there is no clean dip (breathy
+    flute), accept the best dip below this value instead. None = strict mode."""
     x = np.asarray(x, dtype=np.float64)
     x = x - x.mean()
     tau_max = int(sr / fmin)
@@ -40,6 +43,17 @@ def yin(x, sr, fmin=config.FMIN, fmax=config.FMAX, threshold=0.15):
             tau = t
             break
         t += 1
+    if tau is None and fallback is not None:
+        seg = cmnd[tau_min:tau_max]
+        best = float(seg.min())
+        if best < fallback:
+            # several dips of similar depth: take the first (shortest period) to avoid
+            # picking a sub-octave
+            for t in range(max(tau_min, 1), tau_max - 1):
+                is_dip = cmnd[t] <= cmnd[t - 1] and cmnd[t] <= cmnd[t + 1]
+                if is_dip and cmnd[t] <= best + 0.08:
+                    tau = t
+                    break
     if tau is None:
         return None, 0.0
 
@@ -82,6 +96,18 @@ def sargam_label(offset):
     return config.SARGAM[offset % 12] + ("'" if offset >= 12 else "")
 
 
+def swara_of(midi, sa_midi):
+    """Classify a sound as a swara relative to Sa.
+
+    Returns (label, cents): e.g. ("Re", +8.0), ("Sa'", -3.0) for the upper Sa, ("Ni,", 0.0) for a
+    swara in the lower octave. cents is how far the sound is from that swara (-50..+50)."""
+    semis = float(midi) - sa_midi
+    n = int(round(semis))
+    octave, idx = divmod(n, 12)
+    mark = "'" * octave if octave > 0 else "," * (-octave)
+    return config.SARGAM[idx] + mark, (semis - n) * 100.0
+
+
 @dataclass
 class PitchResult:
     freq: Optional[float]      # Hz, None if no clear note
@@ -95,12 +121,46 @@ class PitchResult:
 class PitchTracker:
     def __init__(self, sr=config.SAMPLE_RATE, fmin=config.FMIN, fmax=config.FMAX):
         self.sr, self.fmin, self.fmax = sr, fmin, fmax
+        self.gate = config.SILENCE_RMS        # volume below this = silence
+        self.noise_floor = None
+        self._cal = []
+        # keep the flute range, drop low rumble/hum and high breath hiss
+        nyq = sr / 2.0
+        hp = max(20.0, fmin * 0.8) / nyq
+        lp = min(config.LOWPASS_HZ, nyq * 0.95) / nyq
+        self._sos = np.vstack([butter(2, hp, btype="highpass", output="sos"),
+                               butter(4, lp, btype="lowpass", output="sos")])
+
+    def _filter(self, frame):
+        frame = np.asarray(frame, dtype=np.float64)
+        if len(frame) < 64:
+            return frame
+        return sosfiltfilt(self._sos, frame)
+
+    # ---- quiet-room calibration (call calibrate() with chunks of silence, then finish) ----
+    def calibrate(self, frame):
+        if frame is not None and len(frame):
+            f = self._filter(frame)
+            self._cal.append(float(np.sqrt(np.mean(f * f))))
+
+    def finish_calibration(self):
+        if not self._cal:
+            return self.gate
+        floor = min(float(np.median(self._cal)), config.NOISE_FLOOR_CAP)
+        self.noise_floor = floor
+        self.gate = max(config.SILENCE_RMS, config.NOISE_MARGIN * floor)
+        self._cal = []
+        return self.gate
 
     def process(self, frame) -> PitchResult:
-        rms = float(np.sqrt(np.mean(np.square(frame)))) if len(frame) else 0.0
-        if rms < config.SILENCE_RMS:
+        if len(frame) == 0:
+            return PitchResult(None, 0.0, 0.0, None, None, None)
+        f = self._filter(frame)
+        rms = float(np.sqrt(np.mean(f * f)))
+        if rms < self.gate:
             return PitchResult(None, 0.0, rms, None, None, None)
-        freq, conf = yin(frame, self.sr, self.fmin, self.fmax)
+        freq, conf = yin(f, self.sr, self.fmin, self.fmax,
+                         threshold=config.YIN_THRESHOLD, fallback=config.YIN_FALLBACK)
         if freq is None or conf < config.MIN_CONFIDENCE:
             return PitchResult(None, conf, rms, None, None, None)
         midi = float(freq_to_midi(freq))

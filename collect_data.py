@@ -25,10 +25,11 @@ def main():
     ap.add_argument("--camera", default="0")
     args = ap.parse_args()
 
-    src = int(args.camera) if args.camera.isdigit() else args.camera
-    cap = cv2.VideoCapture(src)
-    if not cap.isOpened():
-        raise SystemExit("Cannot open camera. Try --camera 1 or close other apps using it.")
+    from camera import open_camera, parse_source
+    cap = open_camera(parse_source(args.camera))
+    if cap is None:
+        raise SystemExit("Cannot open camera. Run: python list_cameras.py to see which numbers "
+                         "work, and close other apps using the camera.")
     tracker = VisionTracker(use_hands=True)
     session = time.strftime("%Y%m%d-%H%M%S")
     config.DATA_DIR.mkdir(exist_ok=True)
