@@ -81,3 +81,14 @@ def finger_hint(target_label, predicted_label, prob, min_prob=0.6):
     if predicted_label == target_label:
         return "Finger position looks right."
     return f"Your fingers look like '{predicted_label}', but the target is '{target_label}'."
+
+
+def finger_feedback(model, hands, target_label):
+    """Full finger message for the lesson. Honest when the model was never shown the target note."""
+    if target_label not in model.classes:
+        return (f"No finger recordings for {target_label} yet, so fingers are not checked "
+                f"(record it with collect_data.py).")
+    if not any(v is not None for v in hands.values()):
+        return finger_hint(target_label, None, 0)
+    label, prob = model.predict(hands)
+    return finger_hint(target_label, label, prob)

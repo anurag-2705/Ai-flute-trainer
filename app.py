@@ -12,7 +12,7 @@ import numpy as np
 
 import config
 from audio import FileSource, MicSource
-from fingers import FingerModel, finger_hint
+from fingers import FingerModel, finger_feedback
 from lesson import LessonSession
 from pitch import PitchTracker, parse_note, sargam_label, swara_of
 from posture import PostureChecker, from_mediapipe
@@ -199,12 +199,8 @@ def main():
                 else:
                     draw_hands(frame, hands)
                 if finger_model is not None and not session.done:
-                    if any(v is not None for v in hands.values()):
-                        label, prob = finger_model.predict(hands)
-                        target = sargam_label(session.steps[session.index][0])
-                        finger_msg = finger_hint(target, label, prob)
-                    else:
-                        finger_msg = finger_hint(None, None, 0)
+                    target = sargam_label(session.steps[session.index][0])
+                    finger_msg = finger_feedback(finger_model, hands, target)
             elif frame is None:
                 time.sleep(0.02)
 

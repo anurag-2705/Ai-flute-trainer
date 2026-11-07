@@ -1,4 +1,4 @@
-# Flute Trainer
+# Ai Flute Trainer
 
 A real-time flute coach. The **microphone** checks pitch, steadiness and octave. The **camera** checks
 posture (flute angle, shoulders, head, elbows, torso) and, once trained, finger positions.
@@ -92,7 +92,10 @@ cents).
 ## Two cameras at once (laptop + phone)
 
 Use the laptop camera for **posture** and a phone (as a webcam, with DroidCam / Iriun / Continuity
-Camera) for **hands and fingers**. The phone view appears as a small picture in the bottom-right
+Camera) for **hands and fingers**. The phone view appears as a small picture in the bottom-right.
+
+```
+python app.py --sa C5 --camera 0 --camera2 1
 ```
 
 `--camera` = posture camera, `--camera2` = finger camera. Try other numbers (1, 2) if the phone is not
